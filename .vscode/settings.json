@@ -1,0 +1,8 @@
+{
+  "files.associations": {
+    "*.html": "html",
+    "*.log": "ansi",
+    "stdio.h": "c"
+  },
+  "editor.tabSize": 4
+}
