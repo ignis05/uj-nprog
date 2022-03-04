@@ -5,7 +5,7 @@ int main() {
     int* pointer = &liczby[0];
     int size = 0;
 
-    while (1) {
+    while (size < 50) {
         int res = scanf("%d", pointer);
         if (*pointer == 0 || res == EOF)
             break;
