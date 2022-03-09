@@ -16,11 +16,40 @@ bool drukowalne_p(const void* buf, int len) {
     return true;
 }
 
+bool drukowalne_string_i(const char* buf) {
+    int i = 0;
+    char currChar;
+    while (true) {
+        currChar = buf[i++];
+        if (currChar == '\0') return true;
+        if (currChar < 32 || currChar > 126) return false;
+    }
+}
+bool drukowalne_string_p(const char* buf) {
+    int i = 0;
+    const char* currCharPtr;
+    while (true) {
+        currCharPtr = buf + (sizeof(char) * i++);
+        if (*currCharPtr == '\0') return true;
+        if (*currCharPtr < 32 || *currCharPtr > 126) return false;
+    }
+}
+
 int main() {
     printf("%d\n", drukowalne_p(&"asdd", 4));
     printf("%d\n", drukowalne_p(&"ąść", 4));
     printf("%d\n", drukowalne_i(&"asdd", 4));
     printf("%d\n", drukowalne_i(&"ąść", 4));
+
+    printf("===\n");
+
+    const char* str1 = "asdd\0";
+    const char* str2 = "ąść\0";
+
+    printf("%d\n", drukowalne_string_p(str1));
+    printf("%d\n", drukowalne_string_p(str2));
+    printf("%d\n", drukowalne_string_i(str1));
+    printf("%d\n", drukowalne_string_i(str2));
 
     return 0;
 }

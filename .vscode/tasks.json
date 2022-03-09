@@ -3,7 +3,7 @@
 		{
 			"type": "cppbuild",
 			"label": "C/C++: g++.exe build active file",
-			"command": "C:\\Program Files\\gcc\\mingw32\\bin\\g++.exe",
+			"command": "C:\\Program Files\\gcc\\mingw32\\bin\\gcc.exe",
 			"args": [
 				"-std=c99",
 				"-pedantic",
