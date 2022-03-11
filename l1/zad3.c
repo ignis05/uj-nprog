@@ -49,7 +49,7 @@ int main(int ArgC, char **ArgV) {
             skip = 1;
         }
 
-        printf("reading chunk with size %i\n", byteSize);
+        printf("reading chunk with size %i bytes\n", byteSize);
 
         // write to file
         if (write(outputFileDesc, &buffer, byteSize) == -1) {
@@ -63,6 +63,7 @@ int main(int ArgC, char **ArgV) {
         perror("file close error");
         return 1;
     }
+    
     // close file
     if (close(outputFileDesc) == -1) {
         perror("file close error");
