@@ -1,7 +1,8 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#define BUFFER_SIZE 50
+
+#define SKIP_EVEN 1
 
 int main(int ArgC, char **ArgV) {
     // check arguments
@@ -29,18 +30,29 @@ int main(int ArgC, char **ArgV) {
     }
 
     // read from file
-    char buffer[BUFFER_SIZE];
+    char buffer = '\0';
     int byteSize = 0;
-    while ((byteSize = read(inputFileDesc, buffer, BUFFER_SIZE))) {
+    short skip = 0;
+    while ((byteSize = read(inputFileDesc, &buffer, 1))) {
         if (byteSize == -1) {
             perror("read error");
             return 1;
         }
 
+        if (skip) {
+            if (buffer == '\n')
+                skip = 0;
+            continue;
+        }
+
+        if (buffer == '\n') {
+            skip = 1;
+        }
+
         printf("reading chunk with size %i\n", byteSize);
 
         // write to file
-        if (write(outputFileDesc, buffer, byteSize) == -1) {
+        if (write(outputFileDesc, &buffer, byteSize) == -1) {
             perror("pipe write error");
             return 1;
         }
