@@ -16,7 +16,7 @@ int main(int ArgC, char **ArgV) {
     // open file
     int inputFileDesc = open(inputFileName, O_RDONLY);
     if (inputFileDesc == -1) {
-        printf("error opening file: %s", inputFileName);
+        printf("error opening file: %s\n", inputFileName);
         perror("failed to open file");
         return 1;
     }
@@ -24,7 +24,7 @@ int main(int ArgC, char **ArgV) {
     // open file
     int outputFileDesc = open(outputFileName, O_WRONLY | O_CREAT);
     if (outputFileDesc == -1) {
-        printf("error opening file: %s", outputFileName);
+        printf("error opening file: %s\n", outputFileName);
         perror("failed to open file");
         return 1;
     }
@@ -63,7 +63,7 @@ int main(int ArgC, char **ArgV) {
         perror("file close error");
         return 1;
     }
-    
+
     // close file
     if (close(outputFileDesc) == -1) {
         perror("file close error");
