@@ -1,6 +1,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #define BUFFER_SIZE 50
 
 int main(int ArgC, char **ArgV) {
