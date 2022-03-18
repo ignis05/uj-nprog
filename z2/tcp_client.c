@@ -19,9 +19,11 @@ int main(int argc, char const *argv[]) {
     // Creating socket file descriptor
     int socket_fd;
     if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-        perror("socket failed");
+        perror("socket");
         exit(EXIT_FAILURE);
     }
+
+    printf("Connecting to socket\n");
 
     struct sockaddr_in address;
     address.sin_family = AF_INET;
@@ -29,10 +31,11 @@ int main(int argc, char const *argv[]) {
     address.sin_port = htons(port);
 
     if (connect(socket_fd, (struct sockaddr *)&address, sizeof(address)) != 0) {
-        printf("connection with the server failed...\n");
-        exit(0);
-    } else
-        printf("connected to the server..\n");
+        perror("connect");
+        exit(EXIT_FAILURE);
+    }
+
+    printf("connected to the server\n");
 
     printf("Reading data:\n");
     char buffer[1024];
@@ -40,7 +43,10 @@ int main(int argc, char const *argv[]) {
     write(STDIN_FILENO, &buffer, bytes);
     printf("\n");
 
-    // close the socket
-    close(socket_fd);
+    if (close(socket_fd)) {
+        perror("close");
+        exit(EXIT_FAILURE);
+    }
+
     return 0;
 }

@@ -1,3 +1,4 @@
+#include <arpa/inet.h>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -41,22 +42,28 @@ int main(int argc, char const *argv[]) {
             perror("listen");
             exit(EXIT_FAILURE);
         }
-        int socket;
-        if ((socket = accept(server_socket, (struct sockaddr *)&address, (socklen_t *)&addrlen)) < 0) {
+        struct sockaddr client_address;
+        socklen_t client_address_len;
+        int socket_fd;
+        if ((socket_fd = accept(server_socket, &client_address, &client_address_len)) < 0) {
             perror("accept");
             exit(EXIT_FAILURE);
         }
 
-        // char buffer[1024];
-        // int bytes = read(socket, buffer, 1024);
-        // printf("%s\n", buffer);
-        send(socket, HELLO_MSG, strlen(HELLO_MSG), 0);
-        printf("Hello message sent\n");
+        struct sockaddr_in *pV4Addr = (struct sockaddr_in *)&client_address;
+        struct in_addr ipAddr = pV4Addr->sin_addr;
 
-        if (close(socket)) {
+        char str_client_address[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &ipAddr, str_client_address, INET_ADDRSTRLEN);
+
+        send(socket_fd, HELLO_MSG, strlen(HELLO_MSG), 0);
+        printf("Hello message sent to client %s\n", str_client_address);
+
+        if (close(socket_fd)) {
             perror("close");
             exit(EXIT_FAILURE);
         }
     }
+
     return 0;
 }

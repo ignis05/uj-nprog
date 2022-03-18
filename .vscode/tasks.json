@@ -4,16 +4,7 @@
 			"type": "cppbuild",
 			"label": "gcc build active file",
 			"command": "gcc",
-			"args": [
-				"-std=c99",
-				"-pedantic",
-				"-Wall",
-				"-Wno-unknown-pragmas",
-				"-g",
-				"./${fileBasename}",
-				"-o",
-				"./${fileBasenameNoExtension}.x"
-			],
+			"args": ["-std=c99", "-pedantic", "-Wall", "-Wno-unknown-pragmas", "-g", "./${fileBasename}", "-o", "./${fileBasenameNoExtension}.x"],
 			"options": {
 				"cwd": "${fileDirname}"
 			},
@@ -21,7 +12,8 @@
 			"group": {
 				"kind": "build",
 				"isDefault": true
-			}
+			},
+			"detail": "Builds active file using gcc with pedatnic c99"
 		},
 		{
 			"type": "shell",
