@@ -18,7 +18,7 @@ int main(int argc, char const *argv[]) {
 
     // Creating socket file descriptor
     int socket_fd;
-    if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
+    if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
         perror("socket");
         exit(EXIT_FAILURE);
     }
@@ -30,7 +30,7 @@ int main(int argc, char const *argv[]) {
     address.sin_addr.s_addr = inet_addr(ip);
     address.sin_port = htons(port);
 
-    if (connect(socket_fd, (struct sockaddr *)&address, sizeof(address)) != 0) {
+    if (connect(socket_fd, (struct sockaddr *)&address, sizeof(address))) {
         perror("connect");
         exit(EXIT_FAILURE);
     }
