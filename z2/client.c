@@ -1,3 +1,4 @@
+#include <arpa/inet.h>
 #include <netinet/in.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -24,7 +25,7 @@ int main(int argc, char const *argv[]) {
 
     struct sockaddr_in address;
     address.sin_family = AF_INET;
-    address.sin_addr.s_addr = inet_addr(argv[1]);
+    address.sin_addr.s_addr = inet_addr(ip);
     address.sin_port = htons(port);
 
     if (connect(socket_fd, (struct sockaddr *)&address, sizeof(address)) != 0) {
