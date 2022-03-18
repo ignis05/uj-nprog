@@ -24,13 +24,12 @@ int main(int argc, char const *argv[]) {
 
     struct sockaddr_in address;
     address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_addr.s_addr = htonl(INADDR_ANY);
     address.sin_port = htons(port);
     int addrlen = sizeof(address);
 
     // Forcefully attaching socket to the port 8080
-    if (bind(server_socket, (struct sockaddr *)&address,
-             sizeof(address)) < 0) {
+    if (bind(server_socket, (struct sockaddr *)&address, addrlen) < 0) {
         perror("bind failed");
         exit(EXIT_FAILURE);
     }
