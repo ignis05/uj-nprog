@@ -7,7 +7,6 @@ server_addr = ('localhost', 2020)
 
 def bytesToString(bytesData: bytes) -> str:
     stringData = bytesData.decode("ascii")
-    stringData = stringData.replace('\x00', '')
     stringData = stringData.replace('\n', '')
     stringData = stringData.replace('\r', '')
     return stringData
