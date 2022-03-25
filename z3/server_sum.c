@@ -1,6 +1,8 @@
 #include <arpa/inet.h>
+#include <limits.h>
 #include <netinet/in.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,6 +12,12 @@
 
 #define PORT_NO 2020
 #define BUFFER_SIZE 65507
+
+bool checkOverflow(unsigned long int num1, unsigned long int num2) {
+    bool isOverflow = UINT32_MAX < num1 + num2;
+    if (isOverflow) printf("Overflow detected\n");
+    return isOverflow;
+}
 
 int main(int argc, char const *argv[]) {
     // Creating socket file descriptor
@@ -60,6 +68,8 @@ int main(int argc, char const *argv[]) {
                 currentNumber *= 10;
                 currentNumber += (currChar - '0');
             } else if (currChar == ' ') {
+                sendError = checkOverflow(currentNumber, total);
+                if (sendError) break;
                 total += currentNumber;
                 currentNumber = 0;
             } else if (currChar == '\n') {
@@ -71,8 +81,10 @@ int main(int argc, char const *argv[]) {
             } else {
                 printf("Found invalid character: %i\n", currChar);
                 sendError = true;
+                break;
             }
         }
+        sendError = checkOverflow(currentNumber, total);
         total += currentNumber;
 
         if (sendError)
