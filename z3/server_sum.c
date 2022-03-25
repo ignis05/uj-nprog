@@ -1,6 +1,7 @@
 #include <arpa/inet.h>
 #include <limits.h>
 #include <netinet/in.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -13,15 +14,30 @@
 #define PORT_NO 2020
 #define BUFFER_SIZE 65507
 
+int server_socket;
+
+void exitHandler() {
+    printf("Exit handler launched\n");
+    if (close(server_socket)) {
+        perror("close");
+        _exit(EXIT_FAILURE);
+    }
+    printf("Socket closed\n\n");
+}
+
+void sigHandler(int sigNo) {
+    printf("\nReceived SIGINT\n");
+    exit(EXIT_SUCCESS);
+}
+
 bool checkOverflow(unsigned long int num1, unsigned long int num2) {
-    bool isOverflow = UINT32_MAX < num1 + num2;
+    bool isOverflow = UINT32_MAX - num1 < num2;  // UINT32_MAX - num1 - num2 < 0
     if (isOverflow) printf("Overflow detected\n");
     return isOverflow;
 }
 
 int main(int argc, char const *argv[]) {
     // Creating socket file descriptor
-    int server_socket;
     if ((server_socket = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
         perror("socket failed");
         exit(EXIT_FAILURE);
@@ -39,14 +55,26 @@ int main(int argc, char const *argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    // close socekt on exit
+    if (atexit(exitHandler)) {
+        perror("atexit error");
+        _exit(EXIT_FAILURE);
+    }
+
+    // bind sighandler to SIGINT
+    if (signal(SIGINT, sigHandler) == SIG_ERR) {
+        perror("Failed to bind sigHandler to SIGINT");
+        return 1;
+    }
+
     printf("Server started\n");
 
     while (true) {
         struct sockaddr client_address;
-        socklen_t client_address_len;
+        socklen_t client_address_len = sizeof(client_address);
         char buffer[BUFFER_SIZE + 1];
         int bufferLength = recvfrom(server_socket, (char *)buffer, BUFFER_SIZE, MSG_WAITALL, &client_address, &client_address_len);
-        buffer[bufferLength++] = '\0';
+        buffer[bufferLength] = '\0';  // set without increasing lenght so its skipped for length based operations
 
         struct sockaddr_in *pV4Addr = (struct sockaddr_in *)&client_address;
         struct in_addr ipAddr = pV4Addr->sin_addr;
@@ -76,8 +104,6 @@ int main(int argc, char const *argv[]) {
                 sendLineBreak = true;
             } else if (currChar == '\r') {
                 sendReturn = true;
-            } else if (currChar == '\0') {
-                continue;
             } else {
                 printf("Found invalid character: %i\n", currChar);
                 sendError = true;
@@ -94,13 +120,15 @@ int main(int argc, char const *argv[]) {
 
         if (sendReturn) buffer[bufferLength++] = '\r';
         if (sendLineBreak) buffer[bufferLength++] = '\n';
-        buffer[bufferLength++] = '\0';
 
-        sendto(server_socket, buffer, bufferLength, MSG_CONFIRM, &client_address, client_address_len);
+        int sent = sendto(server_socket, buffer, bufferLength, MSG_CONFIRM, &client_address, client_address_len);
         if (sendError)
             printf("ERROR sent to client %s\n", str_client_address);
         else
-            printf("Response %ld sent to client %s\n", total, str_client_address);
+            printf("Response %ld sent to client %s in %i bytes\n", total, str_client_address, sent);
+        if (sent == -1) {
+            perror("send error:");
+        }
     }
 
     return 0;

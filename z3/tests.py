@@ -1,14 +1,11 @@
-import os
-import os.path
 import socket
-import sys
 
 host = 'localhost'
 port = 2020
 server_addr = ('localhost', 2020)
 
 
-def bytesToString(bytesData):
+def bytesToString(bytesData: bytes) -> str:
     stringData = bytesData.decode("ascii")
     stringData = stringData.replace('\x00', '')
     stringData = stringData.replace('\n', '')
@@ -16,7 +13,7 @@ def bytesToString(bytesData):
     return stringData
 
 
-def getInt(bytesData):
+def getInt(bytesData: bytes) -> int:
     stringData = bytesToString(bytesData)
     return int(stringData, 10)
 
