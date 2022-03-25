@@ -18,12 +18,11 @@
 		{
 			"type": "shell",
 			"label": "Clean",
-			"command": "rm -rf *.x",
+			"command": "rm -rf *.x *.o *.a *.so",
 			"args": [],
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},
-			"problemMatcher": ["$gcc"],
 			"group": "none",
 			"detail": "Remove all binary files"
 		}
