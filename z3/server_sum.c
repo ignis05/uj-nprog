@@ -41,7 +41,7 @@ int main(int argc, char const *argv[]) {
 
     printf("Server started\n");
 
-    while (1) {
+    while (true) {
         struct sockaddr client_address;
         socklen_t client_address_len;
         char buffer[BUFFER_SIZE + 1];
