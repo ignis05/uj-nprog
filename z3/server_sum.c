@@ -30,8 +30,8 @@ void sigHandler(int sigNo) {
     exit(EXIT_SUCCESS);
 }
 
-bool checkOverflow(unsigned long int num1, unsigned long int num2) {
-    bool isOverflow = UINT32_MAX - num1 < num2;  // UINT32_MAX - num1 - num2 < 0
+bool checkOverflow(unsigned long long num1, unsigned long long num2) {
+    bool isOverflow = UINT64_MAX - num1 < num2;  // UINT64_MAX - num1 - num2 < 0
     if (isOverflow) printf("Overflow detected\n");
     return isOverflow;
 }
@@ -85,19 +85,33 @@ int main(int argc, char const *argv[]) {
         printf("Received message from %s : %s\n", str_client_address, buffer);
 
         char currChar;
-        unsigned long int total = 0;
-        unsigned long int currentNumber = 0;
+        unsigned long long total = 0;
+        unsigned long long currentNumber = 0;
         bool sendLineBreak = false;
         bool sendReturn = false;
         bool sendError = false;
+        bool noNumberReceived = true;
         for (int i = 0; i < bufferLength; i++) {
             currChar = buffer[i];
             if (currChar >= '0' && currChar <= '9') {
+                // check and multuply by 10
+                if (currentNumber > UINT64_MAX / 10) {
+                    sendError = true;
+                    break;
+                }
                 currentNumber *= 10;
+                // check and add next digit
+                if (checkOverflow(currentNumber, (currChar - '0'))) {
+                    sendError = true;
+                    break;
+                }
                 currentNumber += (currChar - '0');
+                noNumberReceived = false;
             } else if (currChar == ' ') {
-                sendError = checkOverflow(currentNumber, total);
-                if (sendError) break;
+                if (checkOverflow(currentNumber, total)) {
+                    sendError = true;
+                    break;
+                }
                 total += currentNumber;
                 currentNumber = 0;
             } else if (currChar == '\n') {
@@ -110,13 +124,13 @@ int main(int argc, char const *argv[]) {
                 break;
             }
         }
-        sendError = checkOverflow(currentNumber, total);
+        if (!sendError) sendError = checkOverflow(currentNumber, total) || noNumberReceived;
         total += currentNumber;
 
         if (sendError)
             bufferLength = sprintf(buffer, "ERROR");
         else
-            bufferLength = sprintf(buffer, "%ld", total);
+            bufferLength = sprintf(buffer, "%llu", total);
 
         if (sendReturn) buffer[bufferLength++] = '\r';
         if (sendLineBreak) buffer[bufferLength++] = '\n';
@@ -125,7 +139,7 @@ int main(int argc, char const *argv[]) {
         if (sendError)
             printf("ERROR sent to client %s\n", str_client_address);
         else
-            printf("Response %ld sent to client %s in %i bytes\n", total, str_client_address, sent);
+            printf("Response %llu sent to client %s in %i bytes\n", total, str_client_address, sent);
         if (sent == -1) {
             perror("send error:");
         }

@@ -33,22 +33,22 @@ if(getInt(sock.recv(65536)) != 12347):
     raise RuntimeError("Test failed")
 
 # cause overflow
-sock.send(b"4294967295 1")
+sock.send(b"18446744073709551615 1")
 if(bytesToString(sock.recv(65536)) != "ERROR"):
     raise RuntimeError("Test failed")
 
 # just below overflow
-sock.send(b"4294967294 1")
-if(getInt(sock.recv(65536)) != 4294967295):
+sock.send(b"18446744073709551614 1")
+if(getInt(sock.recv(65536)) != 18446744073709551615):
     raise RuntimeError("Test failed")
 
 # add below overflow
-sock.send(b"4294967295 0")
-if(getInt(sock.recv(65536)) != 4294967295):
+sock.send(b"18446744073709551615 0")
+if(getInt(sock.recv(65536)) != 18446744073709551615):
     raise RuntimeError("Test failed")
 
 # signle number overflow
-sock.send(b"4294967295999 1")
+sock.send(b"18446744073709551619 1")
 if(bytesToString(sock.recv(65536)) != "ERROR"):
     raise RuntimeError("Test failed")
 
