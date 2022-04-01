@@ -40,6 +40,16 @@ void sigHandler(int sigNo) {
 }
 
 /** *
+ * Checks if number overflow will happen when adding 2 values
+ * @returns true if overflow will happen
+ */
+bool checkOverflow(unsigned long long num1, unsigned long long num2) {
+    bool isOverflow = UINT64_MAX - num1 < num2;  // UINT64_MAX - num1 - num2 < 0
+    if (isOverflow) printf("Overflow detected\n");
+    return isOverflow;
+}
+
+/** *
  * Puts socked descriptor in correct place in socket list
  * @param fd - socked descriptor
  * @returns index where socket was placed
@@ -56,11 +66,13 @@ int putInSockList(int fd) {
 
 bool addDigitToNumber(unsigned long long *currentNumber, char currChar) {
     // check and multiply by 10
-    if (currentNumber > UINT64_MAX / 10) return true;
+    if (*currentNumber > UINT64_MAX / 10) return true;
     *currentNumber *= 10;
 
+    unsigned long long nr = *currentNumber;
+
     // check and add next digit
-    if (checkOverflow(*currentNumber, (currChar - '0'))) return true;
+    if (checkOverflow(nr, (currChar - '0'))) return true;
     *currentNumber += (currChar - '0');
 
     return false;
@@ -75,16 +87,6 @@ void sendErr(int socket_fd) {
         perror("error fn send");
         exit(EXIT_FAILURE);
     }
-}
-
-/** *
- * Checks if number overflow will happen when adding 2 values
- * @returns true if overflow will happen
- */
-bool checkOverflow(unsigned long long num1, unsigned long long num2) {
-    bool isOverflow = UINT64_MAX - num1 < num2;  // UINT64_MAX - num1 - num2 < 0
-    if (isOverflow) printf("Overflow detected\n");
-    return isOverflow;
 }
 
 int main(int argc, char const *argv[]) {
@@ -156,7 +158,6 @@ int main(int argc, char const *argv[]) {
         char currChar;
         unsigned long long total = 0;
         unsigned long long currentNumber = 0;
-        bool sendReturn = false;
         bool sendError = false;
         bool noNumberReceived = true;
         bool lastWasSpace = true;  // no space after start
@@ -207,9 +208,12 @@ int main(int argc, char const *argv[]) {
                     int sendError = false;
 
                     // no space before line end or no return
-                    if (lastWasSpace || !lastWasReturn) {
+                    if (!lastWasReturn) {
+                        printf("no return char\n");
                         sendError = true;
-                        sendErr(socket_fd);
+                    }
+                    if (lastWasSpace) {
+                        sendError = true;
                     }
                     lastWasReturn = false;
                     // final addition and send
@@ -227,7 +231,13 @@ int main(int argc, char const *argv[]) {
                         }
                         printf("Response %llu sent to client %s\n", total, str_client_address);
                     }
+                    // reset values
+                    total = 0;
+                    currentNumber = 0;
                     sendError = false;
+                    noNumberReceived = true;
+                    lastWasSpace = true;
+                    lastWasReturn = false;
                 } else if (currChar == '\r') {
                     // no space before line end or double return
                     if (sendError) {
