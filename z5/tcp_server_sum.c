@@ -54,6 +54,33 @@ int putInSockList(int fd) {
     return -1;
 }
 
+bool addDigitToNumber(unsigned long long *currentNumber, char currChar) {
+    // check and multiply by 10
+    if (currentNumber > UINT64_MAX / 10) return true;
+    *currentNumber *= 10;
+
+    // check and add next digit
+    if (checkOverflow(*currentNumber, (currChar - '0'))) return true;
+    *currentNumber += (currChar - '0');
+
+    return false;
+}
+
+/**
+ * Sends error to socket
+ */
+void sendErr(int socket_fd) {
+    char buffer[7] = "ERROR\r\n";
+    if (send(socket_fd, buffer, 7, 0) == -1) {
+        perror("error fn send");
+        exit(EXIT_FAILURE);
+    }
+}
+
+/** *
+ * Checks if number overflow will happen when adding 2 values
+ * @returns true if overflow will happen
+ */
 bool checkOverflow(unsigned long long num1, unsigned long long num2) {
     bool isOverflow = UINT64_MAX - num1 < num2;  // UINT64_MAX - num1 - num2 < 0
     if (isOverflow) printf("Overflow detected\n");
@@ -125,6 +152,16 @@ int main(int argc, char const *argv[]) {
 
         printf("Connected to client %s\n", str_client_address);
 
+        // persisitent values between multiple reads
+        char currChar;
+        unsigned long long total = 0;
+        unsigned long long currentNumber = 0;
+        bool sendReturn = false;
+        bool sendError = false;
+        bool noNumberReceived = true;
+        bool lastWasSpace = true;  // no space after start
+        bool lastWasReturn = false;
+
         // read from client
         while (true) {
             char buffer[BUFFER_SIZE + 1];
@@ -141,69 +178,73 @@ int main(int argc, char const *argv[]) {
             }
             buffer[bufferLength] = '\0';  // terminate without increasing size
 
-            printf("===\nReceived message from %s : %s\n", str_client_address, buffer);
+            printf("===\nReceived data from %s : %s\n", str_client_address, buffer);
 
-            char currChar;
-            unsigned long long total = 0;
-            unsigned long long currentNumber = 0;
-            bool sendLineBreak = false;
-            bool sendReturn = false;
-            bool sendError = false;
-            bool noNumberReceived = true;
+            // interpret characters
             for (int i = 0; i < bufferLength; i++) {
                 currChar = buffer[i];
                 if (currChar >= '0' && currChar <= '9') {
-                    // check and multuply by 10
-                    if (currentNumber > UINT64_MAX / 10) {
+                    if (!sendError) continue;
+                    sendError = addDigitToNumber(&currentNumber, currChar);
+                    if (sendError) {
+                        sendErr(socket_fd);
                         sendError = true;
-                        break;
                     }
-                    currentNumber *= 10;
-                    // check and add next digit
-                    if (checkOverflow(currentNumber, (currChar - '0'))) {
-                        sendError = true;
-                        break;
-                    }
-                    currentNumber += (currChar - '0');
                     noNumberReceived = false;
+                    lastWasSpace = false;
                 } else if (currChar == ' ') {
-                    if (checkOverflow(currentNumber, total)) {
+                    if (!sendError) continue;
+                    // no double space
+                    if (lastWasSpace || checkOverflow(currentNumber, total)) {
+                        sendErr(socket_fd);
                         sendError = true;
-                        break;
                     }
                     total += currentNumber;
+                    lastWasSpace = true;
                     currentNumber = 0;
                 } else if (currChar == '\n') {
-                    sendLineBreak = true;
+                    // use it for local errors - will be set to false at end anyway
+                    int sendError = false;
+
+                    // no space before line end or no return
+                    if (lastWasSpace || !lastWasReturn) {
+                        sendError = true;
+                        sendErr(socket_fd);
+                    }
+                    lastWasReturn = false;
+                    // final addition and send
+                    if (!sendError) sendError = checkOverflow(currentNumber, total) || noNumberReceived;
+                    total += currentNumber;
+
+                    if (sendError) {
+                        sendErr(socket_fd);
+                        printf("ERROR sent to client %s\n", str_client_address);
+                    } else {
+                        bufferLength = sprintf(buffer, "%llu\r\n", total);
+                        if (send(socket_fd, buffer, bufferLength, 0) == -1) {
+                            perror("send");
+                            exit(EXIT_FAILURE);
+                        }
+                        printf("Response %llu sent to client %s\n", total, str_client_address);
+                    }
+                    sendError = false;
                 } else if (currChar == '\r') {
-                    sendReturn = true;
+                    // no space before line end or double return
+                    if (sendError) {
+                        if (lastWasSpace || lastWasReturn) {
+                            sendErr(socket_fd);
+                            sendError = true;
+                        }
+                    }
+                    lastWasReturn = true;
                 } else {
+                    if (!sendError) continue;
                     printf("Found invalid character: %i\n", currChar);
+                    sendErr(socket_fd);
                     sendError = true;
-                    break;
                 }
             }
-            if (!sendError) sendError = checkOverflow(currentNumber, total) || noNumberReceived;
-            total += currentNumber;
-
-            if (sendError)
-                bufferLength = sprintf(buffer, "ERROR");
-            else
-                bufferLength = sprintf(buffer, "%llu", total);
-
-            if (sendReturn) buffer[bufferLength++] = '\r';
-            if (sendLineBreak) buffer[bufferLength++] = '\n';
-
-            if (send(socket_fd, buffer, bufferLength, 0) == -1) {
-                perror("send");
-                exit(EXIT_FAILURE);
-            }
-            if (sendError)
-                printf("ERROR sent to client %s\n", str_client_address);
-            else
-                printf("Response %llu sent to client %s\n", total, str_client_address);
         }
     }
-
     return 0;
 }
