@@ -81,12 +81,8 @@ bool addDigitToNumber(unsigned long long *currentNumber, char currChar) {
 /**
  * Sends error to socket
  */
-void sendErr(int socket_fd) {
-    char buffer[7] = "ERROR\r\n";
-    if (send(socket_fd, buffer, 7, 0) == -1) {
-        perror("error fn send");
-        exit(EXIT_FAILURE);
-    }
+void queueErr(int socket_fd, char *ptr, int *resBSize) {
+    *resBSize += sprintf(ptr, "%s\r\n", "ERROR");
 }
 
 int main(int argc, char const *argv[]) {
@@ -163,13 +159,19 @@ int main(int argc, char const *argv[]) {
         bool lastWasSpace = true;  // no space after start
         bool lastWasReturn = false;
 
+        // persistent response buffer
+        char responseBuffer[1024];
+        int resBSize = 0;
+
         // read from client
-        while (true) {
+        while (!lastWasReturn) {
             char buffer[BUFFER_SIZE + 1];
             int bufferLength = read(socket_fd, buffer, BUFFER_SIZE);
             if (bufferLength == -1) {
-                perror("read");
-                exit(EXIT_FAILURE);
+                perror("ERROR reading from socket");
+                close(socket_fd);
+                clientsockets[clientsockets_index] = 0;
+                break;
             }
             if (bufferLength == 0) {
                 printf("Connection terminated\n");
@@ -185,51 +187,67 @@ int main(int argc, char const *argv[]) {
             for (int i = 0; i < bufferLength; i++) {
                 currChar = buffer[i];
                 if (currChar >= '0' && currChar <= '9') {
-                    if (!sendError) continue;
-                    sendError = addDigitToNumber(&currentNumber, currChar);
-                    if (sendError) {
-                        sendErr(socket_fd);
+                    if (sendError) continue;
+
+                    if (addDigitToNumber(&currentNumber, currChar)) {
+                        printf("ERROR: overflow when adding to current\n");
+                        // queue error
+                        char *ptr = &responseBuffer[resBSize];
+                        resBSize += sprintf(ptr, "%s\r\n", "ERROR");
                         sendError = true;
                     }
+
                     noNumberReceived = false;
                     lastWasSpace = false;
+
                 } else if (currChar == ' ') {
-                    if (!sendError) continue;
+                    if (sendError) continue;
                     // no double space
-                    if (lastWasSpace || checkOverflow(currentNumber, total)) {
-                        sendErr(socket_fd);
-                        sendError = true;
-                    }
-                    total += currentNumber;
-                    lastWasSpace = true;
-                    currentNumber = 0;
-                } else if (currChar == '\n') {
-                    // use it for local errors - will be set to false at end anyway
-                    int sendError = false;
-
-                    // no space before line end or no return
-                    if (!lastWasReturn) {
-                        printf("no return char\n");
-                        sendError = true;
-                    }
                     if (lastWasSpace) {
+                        printf("ERROR: space before space\n");
+                        // queue error
+                        char *ptr = &responseBuffer[resBSize];
+                        resBSize += sprintf(ptr, "%s\r\n", "ERROR");
+                        sendError = true;
+                    } else if (checkOverflow(currentNumber, total)) {
+                        printf("ERROR: overflow when adding to total\n");
+                        // queue error
+                        char *ptr = &responseBuffer[resBSize];
+                        resBSize += sprintf(ptr, "%s\r\n", "ERROR");
                         sendError = true;
                     }
-                    lastWasReturn = false;
-                    // final addition and send
-                    if (!sendError) sendError = checkOverflow(currentNumber, total) || noNumberReceived;
                     total += currentNumber;
-
-                    if (sendError) {
-                        sendErr(socket_fd);
-                        printf("ERROR sent to client %s\n", str_client_address);
-                    } else {
-                        bufferLength = sprintf(buffer, "%llu\r\n", total);
-                        if (send(socket_fd, buffer, bufferLength, 0) == -1) {
-                            perror("send");
-                            exit(EXIT_FAILURE);
+                    currentNumber = 0;
+                    lastWasSpace = true;
+                } else if (currChar == '\n') {
+                    if (!sendError) {
+                        // no space before line end or no return
+                        if (!lastWasReturn) {
+                            printf("ERROR: no return before newline\n");
+                            sendError = true;
+                        } else if (lastWasSpace) {
+                            printf("ERROR: space before newline\n");
+                            sendError = true;
+                        } else if (noNumberReceived) {
+                            printf("ERROR: no number received\n");
+                            sendError = true;
+                        } else if (checkOverflow(currentNumber, total) || noNumberReceived) {
+                            printf("ERROR: overflow when adding final to total\n");
+                            sendError = true;
+                        } else {
+                            // final addition and send
+                            total += currentNumber;
                         }
-                        printf("Response %llu sent to client %s\n", total, str_client_address);
+
+                        if (sendError) {
+                            // queue error
+                            char *ptr = &responseBuffer[resBSize];
+                            resBSize += sprintf(ptr, "%s\r\n", "ERROR");
+                            printf("ERROR queued to client %s\n", str_client_address);
+                        } else {
+                            char *ptr = &responseBuffer[resBSize];
+                            resBSize += sprintf(ptr, "%llu\r\n", total);
+                        }
                     }
                     // reset values
                     total = 0;
@@ -240,21 +258,33 @@ int main(int argc, char const *argv[]) {
                     lastWasReturn = false;
                 } else if (currChar == '\r') {
                     // no space before line end or double return
-                    if (sendError) {
+                    if (!sendError) {
                         if (lastWasSpace || lastWasReturn) {
-                            sendErr(socket_fd);
+                            printf("ERROR: space or return before return\n");
+                            // queue error
+                            char *ptr = &responseBuffer[resBSize];
+                            resBSize += sprintf(ptr, "%s\r\n", "ERROR");
                             sendError = true;
                         }
                     }
                     lastWasReturn = true;
+                    lastWasSpace = false;
                 } else {
-                    if (!sendError) continue;
+                    if (sendError) continue;
                     printf("Found invalid character: %i\n", currChar);
-                    sendErr(socket_fd);
+                    // queue error
+                    char *ptr = &responseBuffer[resBSize];
+                    resBSize += sprintf(ptr, "%s\r\n", "ERROR");
                     sendError = true;
                 }
             }
         }
+        responseBuffer[resBSize] = '\0';
+        if (send(socket_fd, responseBuffer, resBSize, 0) == -1) {
+            perror("send");
+            exit(EXIT_FAILURE);
+        }
+        printf("Sending response to client %s: %s", str_client_address, responseBuffer);
     }
     return 0;
 }
