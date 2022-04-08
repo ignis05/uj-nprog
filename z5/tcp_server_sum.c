@@ -142,9 +142,9 @@ int main(int argc, char const *argv[]) {
             continue;
         }
 
+        // get client's ip address
         struct sockaddr_in *pV4Addr = (struct sockaddr_in *)&client_address;
         struct in_addr ipAddr = pV4Addr->sin_addr;
-
         char str_client_address[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &ipAddr, str_client_address, INET_ADDRSTRLEN);
 
