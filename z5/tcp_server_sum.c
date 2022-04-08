@@ -158,13 +158,26 @@ int main(int argc, char const *argv[]) {
         bool noNumberReceived = true;
         bool lastWasSpace = true;  // no space after start
         bool lastWasReturn = false;
+        bool lastWasNL = false;
 
         // persistent response buffer
         char responseBuffer[1024];
         int resBSize = 0;
 
         // read from client
-        while (!lastWasReturn) {
+        while (true) {
+            // send response if its ready
+            if (lastWasNL) {
+                responseBuffer[resBSize] = '\0';
+                if (send(socket_fd, responseBuffer, resBSize, 0) == -1) {
+                    perror("send");
+                    exit(EXIT_FAILURE);
+                }
+                printf("Sending response to client %s: %s", str_client_address, responseBuffer);
+                resBSize = 0;
+                lastWasNL = false;
+            }
+
             char buffer[BUFFER_SIZE + 1];
             int bufferLength = read(socket_fd, buffer, BUFFER_SIZE);
             if (bufferLength == -1) {
@@ -174,7 +187,7 @@ int main(int argc, char const *argv[]) {
                 break;
             }
             if (bufferLength == 0) {
-                printf("Connection terminated\n");
+                printf("Connection with client %s terminated\n", str_client_address);
                 close(socket_fd);
                 clientsockets[clientsockets_index] = 0;
                 break;
@@ -256,6 +269,7 @@ int main(int argc, char const *argv[]) {
                     noNumberReceived = true;
                     lastWasSpace = true;
                     lastWasReturn = false;
+                    lastWasNL = true;
                 } else if (currChar == '\r') {
                     // no space before line end or double return
                     if (!sendError) {
@@ -279,12 +293,6 @@ int main(int argc, char const *argv[]) {
                 }
             }
         }
-        responseBuffer[resBSize] = '\0';
-        if (send(socket_fd, responseBuffer, resBSize, 0) == -1) {
-            perror("send");
-            exit(EXIT_FAILURE);
-        }
-        printf("Sending response to client %s: %s", str_client_address, responseBuffer);
     }
     return 0;
 }
