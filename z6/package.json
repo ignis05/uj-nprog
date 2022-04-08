@@ -1,0 +1,15 @@
+{
+  "name": "z6",
+  "version": "1.0.0",
+  "description": "",
+  "main": "read.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "object-to-xml": "^2.0.0",
+    "xml-js": "^1.6.11"
+  }
+}
