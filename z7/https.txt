@@ -1,0 +1,3 @@
+python serwer_https.py -s -p 3000
+
+curl -k https://localhost:3000

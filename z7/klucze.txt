@@ -1,0 +1,12 @@
+pobranie:
+    openssl s_client -connect localhost:3000 > downloaded.crt
+
+wyodrębnienie klucza:
+    openssl x509 -pubkey -noout -in downloaded.crt > klucz_pub_serwera.pem
+
+zaszyfrowanie wiadomości
+    openssl rsautl -encrypt -inkey klucz_pub_serwera.pem -pubin -in wiadomosc.txt > encrypted.bin
+
+odszyfrowanie wiadomości
+    openssl rsautl -decrypt -inkey server_key_and_cert.pem -in encrypted.bin
+
