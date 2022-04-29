@@ -1,0 +1,33 @@
+{
+    "message": "Request failed with status code 401",
+    "name": "AxiosError",
+    "config": {
+        "transitional": {
+            "silentJSONParsing": true,
+            "forcedJSONParsing": true,
+            "clarifyTimeoutError": false
+        },
+        "transformRequest": [
+            null
+        ],
+        "transformResponse": [
+            null
+        ],
+        "timeout": 0,
+        "xsrfCookieName": "XSRF-TOKEN",
+        "xsrfHeaderName": "X-XSRF-TOKEN",
+        "maxContentLength": -1,
+        "maxBodyLength": -1,
+        "env": {},
+        "headers": {
+            "Accept": "application/json, text/plain, */*",
+            "User-Agent": "axios/0.27.2"
+        },
+        "withCredentials": true,
+        "baseURL": "http://sphinx.if.uj.edu.pl/techwww/httptest/",
+        "method": "get",
+        "url": "/private"
+    },
+    "code": "ERR_BAD_REQUEST",
+    "status": 401
+}
