@@ -46,6 +46,7 @@ Gratulacje! Wykonałeś zapytanie HTTP POST z typem zawartości JSON.
 ```
 
 axios post
+
 ```
 $ ncat -l 127.0.0.1 3000
 POST / HTTP/1.1
@@ -57,4 +58,12 @@ Host: localhost:3000
 Connection: close
 
 {"przedmiot":"programowanie sieciowe"}
+```
+
+curl login:
+
+```
+curl -d "login=test&password=0123" -X POST -c cookies.txt http://sphinx.if.uj.edu.pl/techwww/httptest/login
+
+curl -X GET -b cookies.txt http://sphinx.if.uj.edu.pl/techwww/httptest/private
 ```
