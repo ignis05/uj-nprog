@@ -1,4 +1,4 @@
-# Programowanie sieciowe - zestaw 9
+# Programowanie sieciowe - Zadanie 3: Wyłuskiwanie danych z serwisu WWW
 
 Grzegorz Mikołajczyk
 
