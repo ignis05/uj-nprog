@@ -11,8 +11,7 @@ const cheerio = require('cheerio')
 async function main() {
 	// request
 	let res = await axios.get('https://www.accuweather.com/en/pl/krakow/274455/current-weather/274455').catch((err) => {
-		console.error(`Request failed`)
-		console.error(err)
+		console.error(`Request failed: ${err}`)
 		process.exit(0)
 	})
 	if (!res.data) return console.log(`No data attached, response code: ${res.code}`)
