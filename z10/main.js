@@ -17,6 +17,7 @@ async function main() {
 				key: settings.key,
 				secret: settings.secret,
 				per_page: settings.chunkSize,
+                type:'release'
 			},
 		})
 		.catch((err) => {
