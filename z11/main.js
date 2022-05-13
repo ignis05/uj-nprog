@@ -13,7 +13,8 @@ async function main() {
 	let res
 
 	// group name instead of id
-	if (isNaN(id)) {
+	if (!/^\d+$/.test(joinedArgs) || isNaN(id)) {
+		console.log('Parameter not a number, running database search')
 		res = await axios
 			.get(`https://api.discogs.com/database/search`, {
 				params: {
@@ -31,7 +32,7 @@ async function main() {
 		if (!res.data) return console.log(`No data attached, response code: ${res.code}`)
 
 		id = res.data?.results?.[0]?.id
-		if (!id) return console.log(`Failed to find artist id`)
+		if (!id) return console.log(`Failed to find artist id for name: ${joinedArgs}`)
 	}
 
 	// fetch group members
@@ -47,14 +48,13 @@ async function main() {
 
 	let origGroup = res.data
 	let members = origGroup?.members
-	if (!members) return console.log(`Failed to find members list`)
+	if (!members) return console.log(`Failed to find members list for artist ${origGroup.resource_url}`)
+	console.log(`Fetching members for group ${id}: ${origGroup.name}`)
 
 	// check rate limits to avoid timeout
 	let requestLimit = parseInt(res.headers['x-discogs-ratelimit-remaining']) - 1
 	if (members.length > requestLimit) {
-		console.log(
-			`Reducing cross-reference search to ${requestLimit}/${members.length} members as API limit won't allow more requests at the moment`
-		)
+		console.log(`Reducing search to ${requestLimit}/${members.length} members as API limit won't allow more requests at the moment`)
 		members = members.slice(0, requestLimit)
 	}
 
