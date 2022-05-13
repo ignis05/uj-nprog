@@ -2,19 +2,21 @@ const process = require('process')
 const axios = require('axios')
 const fs = require('fs')
 
-const auth = {
+const settings = {
 	key: 'JGgaPanYuVZFyrtCuxNA',
 	secret: 'nnxpeUxUccEBeZaDeMStCgIIhTEToRjD',
+	chunkSize: '100',
+	artistQuery: 'Budka Suflera',
 }
 
 async function main() {
 	let res = await axios
 		.get(`https://api.discogs.com/database/search`, {
 			params: {
-				artist: 'Budka Suflera',
-				key: auth.key,
-				secret: auth.secret,
-				per_page: '100',
+				artist: settings.artistQuery,
+				key: settings.key,
+				secret: settings.secret,
+				per_page: settings.chunkSize,
 			},
 		})
 		.catch((err) => {
@@ -22,10 +24,19 @@ async function main() {
 			process.exit(0)
 		})
 	if (!res.data) return console.log(`No data attached, response code: ${res.code}`)
-	let { results, pagination } = res.data
+
+	let { results } = res.data
+	let chunksCount = 1
+
+	while (res.data.pagination.urls?.next) {
+		res = await axios.get(res.data.pagination.urls.next)
+		results.push(...res.data.results)
+		chunksCount++
+	}
+
 	let titles = results.map((el) => el.title)
-	console.log(pagination)
-	console.log('Fetched titls:', titles)
+
+	console.log(`Fetched ${titles.length} titles in ${chunksCount} requests:`, titles)
 	fs.writeFileSync('./data.json', JSON.stringify(results))
 }
 main()
