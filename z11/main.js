@@ -2,25 +2,25 @@ const process = require('process')
 const axios = require('axios')
 const fs = require('fs')
 
-const settings = {
+const apiAuth = {
 	key: 'JGgaPanYuVZFyrtCuxNA',
 	secret: 'nnxpeUxUccEBeZaDeMStCgIIhTEToRjD',
 }
 
 async function main() {
 	let joinedArgs = process.argv.slice(2).join(' ')
-	let id = parseInt(joinedArgs)
-	let res
 
-	// group name instead of id
-	if (!/^\d+$/.test(joinedArgs) || isNaN(id)) {
+	// only digits
+	if (/^\d+$/.test(joinedArgs)) {
+		var id = parseInt(joinedArgs)
+	} else {
 		console.log('Parameter not a number, running database search')
-		res = await axios
+		let resp = await axios
 			.get(`https://api.discogs.com/database/search`, {
 				params: {
 					q: joinedArgs,
-					key: settings.key,
-					secret: settings.secret,
+					key: apiAuth.key,
+					secret: apiAuth.secret,
 					per_page: '1',
 					type: 'artist',
 				},
@@ -29,14 +29,14 @@ async function main() {
 				console.error(`Request failed: ${err}`)
 				process.exit(0)
 			})
-		if (!res.data) return console.log(`No data attached, response code: ${res.code}`)
+		if (!resp.data) return console.log(`No data attached, response code: ${resp.code}`)
 
-		id = res.data?.results?.[0]?.id
+		id = resp.data?.results?.[0]?.id
 		if (!id) return console.log(`Failed to find artist id for name: ${joinedArgs}`)
 	}
 
 	// fetch group members
-	res = await axios
+	let res = await axios
 		.get(`https://api.discogs.com/artists/${id}`, {
 			params: {},
 		})
@@ -54,13 +54,18 @@ async function main() {
 	// check rate limits to avoid timeout
 	let requestLimit = parseInt(res.headers['x-discogs-ratelimit-remaining']) - 1
 	if (members.length > requestLimit) {
-		console.log(`Reducing search to ${requestLimit}/${members.length} members as API limit won't allow more requests at the moment`)
+		var rateLimit = `${requestLimit}/${members.length}`
+		console.log(`Reducing search to ${rateLimit} members as API limit won't allow more requests at the moment`)
 		members = members.slice(0, requestLimit)
 	}
 
-	// fetch each member details
+	// fetch each member details, replace simple list with detailed one
 	let detailsPromises = members.map((member) => axios.get(member.resource_url))
-	members = (await Promise.all(detailsPromises)).map((el) => el.data)
+	let responses = await Promise.all(detailsPromises).catch((err) => {
+		console.error(`Request failed: ${err}`)
+		process.exit(0)
+	})
+	members = responses.map((res) => res.data)
 
 	// map member groups together
 	let groupMap = {}
@@ -78,11 +83,19 @@ async function main() {
 	// sort
 	groups.sort((a, b) => a.name.localeCompare(b.name))
 
+	// prepare results object
+	let resultObject = {
+		originalGroup: {
+			name: origGroup.name,
+			members: members.map((m) => m.name),
+		},
+		otherGroups: groups,
+	}
+	if (rateLimit) resultObject.originalGroup.rateLimit = `${rateLimit} members processed`
+
 	// print and save to json
 	console.log(`Found ${groups.length} groups with matching members: `, groups)
-	fs.writeFileSync(
-		'./results.json',
-		JSON.stringify({ originalGroup: { name: origGroup.name, members: members.map((m) => m.name) }, otherGroups: groups }, null, 4)
-	)
+	fs.writeFileSync(`./${origGroup.name}.json`, JSON.stringify(resultObject, null, 4))
+	console.log(`Results saved in "${origGroup.name}.json"`)
 }
 main()
