@@ -5,29 +5,36 @@ const fs = require('fs')
 const settings = {
 	key: 'JGgaPanYuVZFyrtCuxNA',
 	secret: 'nnxpeUxUccEBeZaDeMStCgIIhTEToRjD',
-	artistQuery: 'Budka Suflera',
 }
 
 async function main() {
-	let res = await axios
-		.get(`https://api.discogs.com/database/search`, {
-			params: {
-				q: settings.artistQuery,
-				key: settings.key,
-				secret: settings.secret,
-				per_page: '1',
-				type: 'artist',
-			},
-		})
-		.catch((err) => {
-			console.error(`Request failed: ${err}`)
-			process.exit(0)
-		})
-	if (!res.data) return console.log(`No data attached, response code: ${res.code}`)
+	let joinedArgs = process.argv.slice(2).join(' ')
+	let id = parseInt(joinedArgs)
+	let res
 
-	let id = res.data?.results?.[0]?.id
-	if (!id) return console.log(`Failed to find artist id`)
+	// group name instead of id
+	if (isNaN(id)) {
+		res = await axios
+			.get(`https://api.discogs.com/database/search`, {
+				params: {
+					q: joinedArgs,
+					key: settings.key,
+					secret: settings.secret,
+					per_page: '1',
+					type: 'artist',
+				},
+			})
+			.catch((err) => {
+				console.error(`Request failed: ${err}`)
+				process.exit(0)
+			})
+		if (!res.data) return console.log(`No data attached, response code: ${res.code}`)
 
+		id = res.data?.results?.[0]?.id
+		if (!id) return console.log(`Failed to find artist id`)
+	}
+
+	// fetch group members
 	res = await axios
 		.get(`https://api.discogs.com/artists/${id}`, {
 			params: {},
@@ -38,11 +45,12 @@ async function main() {
 		})
 	if (!res.data) return console.log(`No data attached, response code: ${res.code}`)
 
-	let members = res.data?.members
+	let origGroup = res.data
+	let members = origGroup?.members
 	if (!members) return console.log(`Failed to find members list`)
 
+	// check rate limits to avoid timeout
 	let requestLimit = parseInt(res.headers['x-discogs-ratelimit-remaining']) - 1
-
 	if (members.length > requestLimit) {
 		console.log(
 			`Reducing cross-reference search to ${requestLimit}/${members.length} members as API limit won't allow more requests at the moment`
@@ -50,9 +58,11 @@ async function main() {
 		members = members.slice(0, requestLimit)
 	}
 
+	// fetch each member details
 	let detailsPromises = members.map((member) => axios.get(member.resource_url))
 	members = (await Promise.all(detailsPromises)).map((el) => el.data)
 
+	// map member groups together
 	let groupMap = {}
 	for (let member of members) {
 		for (let group of member.groups) {
@@ -61,9 +71,18 @@ async function main() {
 		}
 	}
 
+	// filter only groups with dupes, skip original group too
 	let groups = Object.values(groupMap).filter((el) => el.members.length >= 2 && el.id != id)
+	// strip unused data
+	groups = groups.map(({ name, members }) => ({ name, members }))
+	// sort
+	groups.sort((a, b) => a.name.localeCompare(b.name))
 
-	console.log(`Found ${groups.length} groups with duplicate members: `, groups)
-	fs.writeFileSync('./results.json', JSON.stringify({ membersList: members.map((m) => m.name), otherGroups: groups }, null, 4))
+	// print and save to json
+	console.log(`Found ${groups.length} groups with matching members: `, groups)
+	fs.writeFileSync(
+		'./results.json',
+		JSON.stringify({ originalGroup: { name: origGroup.name, members: members.map((m) => m.name) }, otherGroups: groups }, null, 4)
+	)
 }
 main()
