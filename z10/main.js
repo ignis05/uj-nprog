@@ -37,6 +37,6 @@ async function main() {
 	let titles = results.map((el) => el.title)
 
 	console.log(`Fetched ${titles.length} titles in ${chunksCount} requests:`, titles)
-	fs.writeFileSync('./data.json', JSON.stringify(results))
+	fs.writeFileSync('./data.json', JSON.stringify(results, null, 4))
 }
 main()
