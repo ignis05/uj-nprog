@@ -79,7 +79,7 @@ async function main() {
 	// strip unused data
 	groups = groups.map(({ name, members }) => ({ name, members }))
 	// sort
-	groups.sort((a, b) => a.name.localeCompare(b.name))
+	groups.sort((a, b) => a.name.localeCompare(b.name, 'pl'))
 
 	// prepare results object
 	let resultObject = {
