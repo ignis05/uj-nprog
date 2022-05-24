@@ -19,10 +19,9 @@ async function main() {
 			.get(`https://api.discogs.com/database/search`, {
 				params: {
 					q: joinedArgs,
-					key: apiAuth.key,
-					secret: apiAuth.secret,
 					per_page: '1',
 					type: 'artist',
+					...apiAuth,
 				},
 			})
 			.catch((err) => {
@@ -36,12 +35,10 @@ async function main() {
 	}
 
 	// fetch group members
-	let res = await axios
-		.get(`https://api.discogs.com/artists/${id}`, { params: { key: apiAuth.key, secret: apiAuth.secret } })
-		.catch((err) => {
-			console.error(`Request failed: ${err}`)
-			process.exit(0)
-		})
+	let res = await axios.get(`https://api.discogs.com/artists/${id}`, { params: apiAuth }).catch((err) => {
+		console.error(`Request failed: ${err}`)
+		process.exit(0)
+	})
 	if (!res.data) return console.log(`No data attached, response code: ${res.code}`)
 
 	let origGroup = res.data
@@ -58,7 +55,7 @@ async function main() {
 	}
 
 	// fetch each member details, replace simple list with detailed one
-	let detailsPromises = members.map((member) => axios.get(member.resource_url, { params: { key: apiAuth.key, secret: apiAuth.secret } }))
+	let detailsPromises = members.map((member) => axios.get(member.resource_url, { params: apiAuth }))
 	let responses = await Promise.all(detailsPromises).catch((err) => {
 		console.error(`Request failed: ${err}`)
 		process.exit(0)
