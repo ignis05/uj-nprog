@@ -1,6 +1,8 @@
 const process = require('process')
 const axios = require('axios')
 const fs = require('fs')
+const cliProgress = require('cli-progress')
+
 
 const apiAuth = {
 	key: 'JGgaPanYuVZFyrtCuxNA',
@@ -48,6 +50,11 @@ async function main() {
 
 	let totalMembersCount = members.length
 	let memberDetails = []
+	const pbarDisplay = new cliProgress.MultiBar({}, cliProgress.Presets.shades_classic)
+	const pBar1 = pbarDisplay.create(totalMembersCount, 0, null, {
+		format: 'Member details fetched: {bar} {percentage}% ({value}/{total})  |  {message}',
+	})
+	pBar1.start(totalMembersCount, 0, null, { message: 'Fetching member details' })
 
 	// check rate limits to avoid timeout
 	let breakLoop = false
@@ -57,10 +64,14 @@ async function main() {
 		let partialMembers = null
 		if (members.length > requestLimit) {
 			var rateLimit = `${requestLimit}/${members.length}`
-			console.log(`Fething details of ${rateLimit} members as API's limit is currently at ${requestLimit}/${totalrequestLimit}`)
+			pBar1.update(memberDetails.length, {
+				message: `Fetching details of ${rateLimit} members as API's limit is currently at ${requestLimit}/${totalrequestLimit}`,
+			})
 			partialMembers = members.slice(0, requestLimit)
 		} else {
-			console.log(`Members count: ${members.lenght}, API limit at ${requestLimit}/${totalrequestLimit}. Fetching in one batch...`)
+			pBar1.update(memberDetails.length, {
+				message: `Members count: ${members.length}, API limit at ${requestLimit}/${totalrequestLimit}. Fetching in one batch...`,
+			})
 			breakLoop = true
 		}
 
@@ -72,12 +83,30 @@ async function main() {
 			process.exit(0)
 		})
 		memberDetails.push(...responses.map((res) => res.data))
+		res = responses[responses.length - 1]
 		if (breakLoop) break
 		// else: prepare for next data chunk in one minute
 		members = members.slice(requestLimit) // slice members list for next request
-		console.log(`Got ${memberDetails.length}/${totalMembersCount} members' details, waiting 1 minute for api cooldown...`)
-		await new Promise((res) => setTimeout(res, 60 * 1000)) // 1 minute timeout
+		pBar1.update(memberDetails.length)
+
+		// 1 minute timeout
+		let pBar2 = pbarDisplay.create(60, 0, null, {
+			format: 'API at limit. Waiting 1 minute for cooldown: [{bar}] {value}/{total} sec',
+		})
+		pBar2.start(60)
+		let timeout = 0
+		let step = 1
+		let interval = setInterval(() => {
+			timeout += step
+			pBar2.update(timeout)
+			if (timeout >= 60) clearInterval(interval)
+		}, step * 1000)
+		pBar2.stop()
+		pbarDisplay.remove(pBar2)
 	}
+	pBar1.update(memberDetails.length)
+	pBar1.stop()
+	pbarDisplay.stop()
 
 	// map member groups together
 	let groupMap = {}
@@ -106,7 +135,12 @@ async function main() {
 	if (rateLimit) resultObject.originalGroup.rateLimit = `${rateLimit} members processed`
 
 	// print and save to json
-	console.log(`Found ${groups.length} groups with matching members: `, groups)
+	console.log(`Found ${groups.length} groups with matching members: `)
+	for (let group of resultObject.otherGroups) {
+		console.log(`${group.name}:`)
+		for (let member of group.members) console.log(`--- ${member}`)
+		console.log(' ')
+	}
 	fs.writeFileSync(`./${origGroup.name}.json`, JSON.stringify(resultObject, null, 4))
 	console.log(`Results saved in "${origGroup.name}.json"`)
 }
