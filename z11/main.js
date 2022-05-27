@@ -4,6 +4,8 @@ const fs = require('fs')
 const cliProgress = require('cli-progress')
 const colors = require('colors')
 
+const timoutWait = 5 // 5 seconds
+
 try {
 	var apiAuth = require('./auth.json')
 	if (apiAuth.key === 'key_here') {
@@ -12,7 +14,7 @@ try {
 	}
 } catch {
 	fs.writeFileSync('./auth.json', JSON.stringify({ key: 'key_here', secret: 'secret_here' }, null, 4))
-	console.log(`Created placeholder auth.json file. Fill in discogs authentication data and launch again.`)
+	console.log(`Created placeholder ${'auth.json'.green} file. Fill in discogs authentication data and launch again.`)
 	process.exit(0)
 }
 
@@ -23,7 +25,7 @@ async function main() {
 	if (/^\d+$/.test(joinedArgs)) {
 		var id = parseInt(joinedArgs)
 	} else {
-		console.log('Parameter not a number, running database search')
+		console.log('Argument is not a number: running database search')
 		let resp = await axios
 			.get(`https://api.discogs.com/database/search`, {
 				params: {
@@ -34,8 +36,8 @@ async function main() {
 				},
 			})
 			.catch((err) => {
-				console.error(`Request failed: ${err}`)
-				process.exit(0)
+				console.error(`Request failed: ${err}`.red)
+				process.exit(1)
 			})
 		if (!resp.data) return console.log(`No data attached, response code: ${resp.code}`)
 
@@ -45,71 +47,79 @@ async function main() {
 
 	// fetch group members
 	let res = await axios.get(`https://api.discogs.com/artists/${id}`, { params: apiAuth }).catch((err) => {
-		console.error(`Request failed: ${err}`)
-		process.exit(0)
+		console.error(`Request failed: ${err}`.red)
+		process.exit(1)
 	})
 	if (!res.data) return console.log(`No data attached, response code: ${res.code}`)
 
 	let origGroup = res.data
 	let members = origGroup?.members
 	if (!members) return console.log(`Failed to find members list for artist ${origGroup.resource_url}`)
-	console.log(`Fetching members for group ${id}: ${origGroup.name}`)
+	console.log(`Fetching members for group ${id.toString().cyan}: ${origGroup.name.cyan}`)
 
 	let totalMembersCount = members.length
 	let memberDetails = []
 	const pbarDisplay = new cliProgress.MultiBar({}, cliProgress.Presets.shades_classic)
 	const pBar1 = pbarDisplay.create(totalMembersCount, 0, null, {
-		format: 'Member details fetched: {bar} {percentage}% ({value}/{total})  |  {message}',
+		format: ' Member details fetched: {bar} {percentage}% ({value}/{total}) | API Limit: {limit} | Status: {status1}',
 	})
-	pBar1.start(totalMembersCount, 0, null, { message: 'Fetching member details' })
+	pBar1.start(totalMembersCount, 0, null, {
+		status1: 'Fetching member details',
+		limit: `${res.headers['x-discogs-ratelimit-remaining']}/${res.headers['x-discogs-ratelimit']}`,
+	})
 
-	// check rate limits to avoid timeout
-	let breakLoop = false
-	while (true) {
-		let totalrequestLimit = parseInt(res.headers['x-discogs-ratelimit'])
-		let requestLimit = parseInt(res.headers['x-discogs-ratelimit-remaining']) - 1
-		let partialMembers = null
-		if (members.length > requestLimit) {
-			var rateLimit = `${requestLimit}/${members.length}`
-			pBar1.update(memberDetails.length, {
-				message: `Fetching details of ${rateLimit} members as API's limit is currently at ${requestLimit}/${totalrequestLimit}`,
+	let gotErr = false
+
+	// fetch member details
+	while (memberDetails.length !== totalMembersCount) {
+		// API at limit
+		if (res.headers['x-discogs-ratelimit-remaining'] == '1') {
+			if (!gotErr)
+				pBar1.update(memberDetails.length, {
+					status1: 'Rate limit reached',
+					limit: `${res.headers['x-discogs-ratelimit-remaining']}/${res.headers['x-discogs-ratelimit']}`,
+				})
+
+			const pBar2 = pbarDisplay.create(timoutWait, 0, null, {
+				format: ' API at limit. Waiting for cooldown: [{bar}] {percentage}% | {duration}s',
 			})
-			partialMembers = members.slice(0, requestLimit)
-		} else {
-			pBar1.update(memberDetails.length, {
-				message: `Members count: ${members.length}, API limit at ${requestLimit}/${totalrequestLimit}. Fetching in one batch...`,
-			})
-			breakLoop = true
+			let timestamp = Date.now()
+			pBar2.start(timoutWait, 0)
+			while (timestamp + timoutWait * 1000 > Date.now()) {
+				await new Promise((res) => setTimeout(res, 1000))
+				pBar2.update((Date.now() - timestamp) / 1000)
+			}
+
+			pBar2.stop()
+			pbarDisplay.remove(pBar2)
 		}
 
-		partialMembers ||= members
-		let detailsPromises = partialMembers.map((member) => axios.get(member.resource_url, { params: apiAuth }))
-		// fetch each member details
-		let responses = await Promise.all(detailsPromises).catch((err) => {
-			console.error(`Request failed: ${err}`)
-			process.exit(0)
-		})
-		memberDetails.push(...responses.map((res) => res.data))
-		res = responses[responses.length - 1]
-		if (breakLoop) break
-		// else: prepare for next data chunk in one minute
-		members = members.slice(requestLimit) // slice members list for next request
-		pBar1.update(memberDetails.length)
+		let member = members[0]
+		try {
+			res = await axios.get(member.resource_url, { params: apiAuth })
+		} catch (err) {
+			// "Too many requests"
+			fs.writeFileSync('error.json', JSON.stringify(err))
+			if (err.response.status == 429) {
+				pBar1.update(memberDetails.length, {
+					status1: `Code 429 received.`,
+					limit: `${res.headers['x-discogs-ratelimit-remaining']}/${res.headers['x-discogs-ratelimit']}`,
+				})
+				gotErr = true
+				continue
+			} else {
+				console.error(`Request failed: ${err}`.red)
+				process.exit(1)
+			}
+		}
 
-		// 1 minute timeout
-		let pBar2 = pbarDisplay.create(60, 0, null, {
-			format: 'API at limit. Waiting 1 minute for cooldown: [{bar}] {value}/{total} sec',
+		memberDetails.push(res.data)
+		members.shift()
+		pBar1.update(memberDetails.length, {
+			status1: 'OK',
+			limit: `${res.headers['x-discogs-ratelimit-remaining']}/${res.headers['x-discogs-ratelimit']}`,
 		})
-		pBar2.start(60)
-		let timeout = 0
-		let step = 1
-		let interval = setInterval(() => {
-			timeout += step
-			pBar2.update(timeout)
-			if (timeout >= 60) clearInterval(interval)
-		}, step * 1000)
-		pBar2.stop()
-		pbarDisplay.remove(pBar2)
+		gotErr = false
 	}
 	pBar1.update(memberDetails.length)
 	pBar1.stop()
@@ -139,7 +149,6 @@ async function main() {
 		},
 		otherGroups: groups,
 	}
-	if (rateLimit) resultObject.originalGroup.rateLimit = `${rateLimit} members processed`
 
 	// print and save to json
 	console.log(`Found ${groups.length} groups with matching members: `)
@@ -149,6 +158,6 @@ async function main() {
 		console.log(' ')
 	}
 	fs.writeFileSync(`./${origGroup.name}.json`, JSON.stringify(resultObject, null, 4))
-	console.log(`Results saved in "${origGroup.name}.json"`)
+	console.log(`Results saved in ${(origGroup.name + '.json').cyan}`)
 }
 main()
