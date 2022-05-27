@@ -3,7 +3,6 @@ const axios = require('axios')
 const fs = require('fs')
 const cliProgress = require('cli-progress')
 const colors = require('colors')
-const { resolve } = require('path')
 
 const timoutWait = 5 // 5 seconds
 
