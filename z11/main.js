@@ -157,7 +157,9 @@ function processData(members, originalGroup) {
 	let filteredGroups = Object.values(groupMap)
 		.filter((el) => el.members.length >= 2 && el.id != originalGroup.id) // strip groups with one members and the original group
 		.map(({ name, members }) => ({ name, members })) // strip unused member details
-		.sort((a, b) => a.name.localeCompare(b.name, 'pl')) // sort
+		.sort((a, b) => a.name.localeCompare(b.name, 'pl')) // sort groups
+
+	for (let g of filteredGroups) g.members.sort((a, b) => a.localeCompare(b, 'pl')) // sort members
 
 	// prepare results object
 	return {
