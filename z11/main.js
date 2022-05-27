@@ -56,22 +56,46 @@ function fetchMembersDetails(members, previousResponse) {
 		let totalMembersCount = members.length
 		let memberDetails = []
 
+		// attempt to fetch all available asynchronously
+		if (res.headers['x-discogs-ratelimit-remaining'] > 1) {
+			let partialMembers = members.slice(0, res.headers['x-discogs-ratelimit-remaining'] - 1)
+			let detailsPromises = partialMembers.map((member) => axios.get(member.resource_url, { params: apiAuth }))
+			var responses = await Promise.allSettled(detailsPromises)
+
+			for (let response of responses) {
+				// push details and remove from original list
+				if (response.status === 'fulfilled') {
+					res = response.value
+					memberDetails.push(res.data)
+					members = members.filter((m) => m.name != res.data.name)
+				} else {
+					// ignore error 429, exit on any other
+					if (response.value.code !== 'ERR_BAD_REQUEST') {
+						console.log(`Error when fetching member details: ${response.value}`)
+						process.exit(1)
+					}
+				}
+			}
+			console.log(`Fetched ${memberDetails.length}/${totalMembersCount} members with bulk requests`)
+		}
+
 		// progressbar setup
 		const barDisplay = new cliProgress.MultiBar({}, cliProgress.Presets.shades_classic)
 		const bar1 = barDisplay.create(totalMembersCount, 0, null, {
 			format: ' Member details fetched: {bar} {percentage}% ({value}/{total}) | API Limit: {limit} | Status: {status1}',
 		})
-		bar1.start(totalMembersCount, 0, null, {
-			status1: 'Fetching member details',
+		bar1.start(totalMembersCount, 0, null)
+		bar1.update(memberDetails.length, {
+			status1: 'OK',
 			limit: `${res.headers['x-discogs-ratelimit-remaining']}/${res.headers['x-discogs-ratelimit']}`,
 		})
 
 		let gotErr = false
 
-		// fetch member details
+		// fetch one by one watching rate limits
 		while (memberDetails.length !== totalMembersCount) {
 			// API at limit
-			if (res.headers['x-discogs-ratelimit-remaining'] == '1') {
+			if (res.headers['x-discogs-ratelimit-remaining'] == '1' || gotErr) {
 				// update progress bars
 				if (!gotErr)
 					bar1.update(memberDetails.length, {
@@ -98,9 +122,8 @@ function fetchMembersDetails(members, previousResponse) {
 			try {
 				res = await axios.get(member.resource_url, { params: apiAuth })
 			} catch (err) {
-				// "Too many requests"
-				fs.writeFileSync('error.json', JSON.stringify(err))
-				if (err.response.status == 429) {
+				// "Error 429"
+				if (err.code === 'ERR_BAD_REQUEST') {
 					bar1.update(memberDetails.length, {
 						status1: `Code 429 received.`,
 						limit: `${res.headers['x-discogs-ratelimit-remaining']}/${res.headers['x-discogs-ratelimit']}`,
