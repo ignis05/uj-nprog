@@ -2,11 +2,18 @@ const process = require('process')
 const axios = require('axios')
 const fs = require('fs')
 const cliProgress = require('cli-progress')
+const colors = require('colors')
 
-
-const apiAuth = {
-	key: 'JGgaPanYuVZFyrtCuxNA',
-	secret: 'nnxpeUxUccEBeZaDeMStCgIIhTEToRjD',
+try {
+	var apiAuth = require('./auth.json')
+	if (apiAuth.key === 'key_here') {
+		console.error(`auth.json is a placeholder`.red)
+		process.exit(0)
+	}
+} catch {
+	fs.writeFileSync('./auth.json', JSON.stringify({ key: 'key_here', secret: 'secret_here' }, null, 4))
+	console.log(`Created placeholder auth.json file. Fill in discogs authentication data and launch again.`)
+	process.exit(0)
 }
 
 async function main() {
@@ -137,8 +144,8 @@ async function main() {
 	// print and save to json
 	console.log(`Found ${groups.length} groups with matching members: `)
 	for (let group of resultObject.otherGroups) {
-		console.log(`${group.name}:`)
-		for (let member of group.members) console.log(`--- ${member}`)
+		console.log(`${group.name}:`.underline.green)
+		for (let member of group.members) console.log(`--- ${member}`.green)
 		console.log(' ')
 	}
 	fs.writeFileSync(`./${origGroup.name}.json`, JSON.stringify(resultObject, null, 4))
