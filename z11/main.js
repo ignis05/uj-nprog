@@ -46,25 +46,42 @@ async function main() {
 	if (!members) return console.log(`Failed to find members list for artist ${origGroup.resource_url}`)
 	console.log(`Fetching members for group ${id}: ${origGroup.name}`)
 
-	// check rate limits to avoid timeout
-	let requestLimit = parseInt(res.headers['x-discogs-ratelimit-remaining']) - 1
-	if (members.length > requestLimit) {
-		var rateLimit = `${requestLimit}/${members.length}`
-		console.log(`Reducing search to ${rateLimit} members as API limit won't allow more requests at the moment`)
-		members = members.slice(0, requestLimit)
-	}
+	let totalMembersCount = members.length
+	let memberDetails = []
 
-	// fetch each member details, replace simple list with detailed one
-	let detailsPromises = members.map((member) => axios.get(member.resource_url, { params: apiAuth }))
-	let responses = await Promise.all(detailsPromises).catch((err) => {
-		console.error(`Request failed: ${err}`)
-		process.exit(0)
-	})
-	members = responses.map((res) => res.data)
+	// check rate limits to avoid timeout
+	let breakLoop = false
+	while (true) {
+		let totalrequestLimit = parseInt(res.headers['x-discogs-ratelimit'])
+		let requestLimit = parseInt(res.headers['x-discogs-ratelimit-remaining']) - 1
+		let partialMembers = null
+		if (members.length > requestLimit) {
+			var rateLimit = `${requestLimit}/${members.length}`
+			console.log(`Fething details of ${rateLimit} members as API's limit is currently at ${requestLimit}/${totalrequestLimit}`)
+			partialMembers = members.slice(0, requestLimit)
+		} else {
+			console.log(`Members count: ${members.lenght}, API limit at ${requestLimit}/${totalrequestLimit}. Fetching in one batch...`)
+			breakLoop = true
+		}
+
+		partialMembers ||= members
+		let detailsPromises = partialMembers.map((member) => axios.get(member.resource_url, { params: apiAuth }))
+		// fetch each member details
+		let responses = await Promise.all(detailsPromises).catch((err) => {
+			console.error(`Request failed: ${err}`)
+			process.exit(0)
+		})
+		memberDetails.push(...responses.map((res) => res.data))
+		if (breakLoop) break
+		// else: prepare for next data chunk in one minute
+		members = members.slice(requestLimit) // slice members list for next request
+		console.log(`Got ${memberDetails.length}/${totalMembersCount} members' details, waiting 1 minute for api cooldown...`)
+		await new Promise((res) => setTimeout(res, 60 * 1000)) // 1 minute timeout
+	}
 
 	// map member groups together
 	let groupMap = {}
-	for (let member of members) {
+	for (let member of memberDetails) {
 		for (let group of member.groups) {
 			if (groupMap[group.id]) groupMap[group.id].members.push(member.name)
 			else groupMap[group.id] = { ...group, members: [member.name] }
@@ -82,7 +99,7 @@ async function main() {
 	let resultObject = {
 		originalGroup: {
 			name: origGroup.name,
-			members: members.map((m) => m.name),
+			members: memberDetails.map((m) => m.name),
 		},
 		otherGroups: groups,
 	}
