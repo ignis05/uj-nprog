@@ -38,7 +38,7 @@ function getIdFromName(bandName) {
 			})
 			.catch((err) => reject({ type: 'error', error: err }))
 
-		let id = res.data?.results?.[0]?.id
+		let id = res?.data?.results?.[0]?.id
 		if (!id) reject({ type: 'empty' })
 		resolve({ id, res })
 	})
@@ -70,9 +70,8 @@ function fetchMembersDetails(members, previousResponse) {
 					members = members.filter((m) => m.name != res.data.name)
 				} else {
 					// ignore error 429, exit on any other
-					if (response.value.code !== 'ERR_BAD_REQUEST') {
-						console.log(`Error when fetching member details: ${response.value}`)
-						process.exit(1)
+					if (response.reason.response.status != 429) {
+						return reject(response.value)
 					}
 				}
 			}
@@ -81,40 +80,37 @@ function fetchMembersDetails(members, previousResponse) {
 
 		// progressbar setup
 		const barDisplay = new cliProgress.MultiBar({}, cliProgress.Presets.shades_classic)
-		const bar1 = barDisplay.create(totalMembersCount, 0, null, {
-			format: ' Member details fetched: {bar} {percentage}% ({value}/{total}) | API Limit: {limit} | Status: {status1}',
+		const bar_progress = barDisplay.create(totalMembersCount, 0, null, {
+			format: ' Member details fetched: {bar} {percentage}% ({value}/{total}) | Status: {status1}',
 		})
-		bar1.start(totalMembersCount, 0, null)
-		bar1.update(memberDetails.length, {
-			status1: 'OK',
-			limit: `${res.headers['x-discogs-ratelimit-remaining']}/${res.headers['x-discogs-ratelimit']}`,
-		})
+		bar_progress.start(totalMembersCount, 0)
+		bar_progress.update(memberDetails.length, { status1: 'OK' })
 
-		let gotErr = false
+		const bar_ratelimit = barDisplay.create(0, 0, null, { format: ' API Rate limit: {bar} {percentage}% ({value}/{total})' })
+		bar_ratelimit.start(parseInt(res.headers['x-discogs-ratelimit']), parseInt(res.headers['x-discogs-ratelimit-remaining']))
+		bar_ratelimit.update(parseInt(res.headers['x-discogs-ratelimit-remaining']))
 
 		// fetch one by one watching rate limits
+		let gotErr = true
 		while (memberDetails.length !== totalMembersCount) {
 			// API at limit
 			if (res.headers['x-discogs-ratelimit-remaining'] == '1' || gotErr) {
 				// update progress bars
-				if (!gotErr)
-					bar1.update(memberDetails.length, {
-						status1: 'Rate limit reached',
-						limit: `${res.headers['x-discogs-ratelimit-remaining']}/${res.headers['x-discogs-ratelimit']}`,
-					})
-				const bar2 = barDisplay.create(timoutWait, 0, null, {
+				bar_progress.update(memberDetails.length, { status1: gotErr ? `Code 429 received.` : 'Rate limit reached' })
+				bar_ratelimit.update(0)
+				const bar_waiting = barDisplay.create(timoutWait, 0, null, {
 					format: ' API at limit. Waiting for cooldown: [{bar}] {percentage}% | {duration}s',
 				})
 
 				// wait 5 seconds
 				let timestamp = Date.now()
-				bar2.start(timoutWait, 0)
+				bar_waiting.start(timoutWait, 0)
 				while (timestamp + timoutWait * 1000 > Date.now()) {
 					await new Promise((res) => setTimeout(res, 1000))
-					bar2.update((Date.now() - timestamp) / 1000)
+					bar_waiting.update((Date.now() - timestamp) / 1000)
 				}
-				bar2.stop()
-				barDisplay.remove(bar2)
+				bar_waiting.stop()
+				barDisplay.remove(bar_waiting)
 			}
 
 			// get member details
@@ -123,11 +119,7 @@ function fetchMembersDetails(members, previousResponse) {
 				res = await axios.get(member.resource_url, { params: apiAuth })
 			} catch (err) {
 				// "Error 429"
-				if (err.code === 'ERR_BAD_REQUEST') {
-					bar1.update(memberDetails.length, {
-						status1: `Code 429 received.`,
-						limit: `${res.headers['x-discogs-ratelimit-remaining']}/${res.headers['x-discogs-ratelimit']}`,
-					})
+				if (err.response.status == 429) {
 					gotErr = true
 					continue
 				} else return reject(err)
@@ -136,14 +128,12 @@ function fetchMembersDetails(members, previousResponse) {
 			// push details to result array
 			memberDetails.push(res.data)
 			members.shift()
-			bar1.update(memberDetails.length, {
-				status1: 'OK',
-				limit: `${res.headers['x-discogs-ratelimit-remaining']}/${res.headers['x-discogs-ratelimit']}`,
-			})
+			bar_progress.update(memberDetails.length, { status1: 'OK' })
+			bar_ratelimit.update(parseInt(res.headers['x-discogs-ratelimit-remaining']))
 			gotErr = false
 		}
-		bar1.update(memberDetails.length)
-		bar1.stop()
+		bar_progress.update(memberDetails.length)
+		bar_ratelimit.update(parseInt(res.headers['x-discogs-ratelimit-remaining']))
 		barDisplay.stop()
 		resolve(memberDetails)
 	})
@@ -183,19 +173,20 @@ async function main() {
 
 	// parse id from args, or fetch it from database
 	if (!/^\d+$/.test(joinedArgs)) {
-		var { id, res } = await getIdFromName(joinedArgs).catch((reason) => {
+		var { id, res } = await getIdFromName(joinedArgs).catch(async (reason) => {
 			if (reason.type === 'empty') {
 				console.log(`Failed to resolve artist name: ` + `API returned empty list`.red)
 				process.exit(0)
+			} else {
+				console.error(`Failed to resolve artist name: ${reason.error}`)
+				process.exit(1)
 			}
-			console.error(`Failed to resolve artist name: ${reason.error}`)
-			process.exit(1)
 		})
 	} else id = parseInt(joinedArgs)
 
 	// fetch group members
-	res = await axios.get(`https://api.discogs.com/artists/${id}`, { params: apiAuth }).catch((err) => {
-		console.error(`Request failed: ${err}`.red)
+	res = await axios.get(`https://api.discogs.com/artists/${id}`, { params: apiAuth }).catch(async (err) => {
+		console.error(`Failed to fetch group details: ${err}`.red)
 		process.exit(1)
 	})
 	if (!res.data) return console.log(`No data attached, response code: ${res.code}`)
