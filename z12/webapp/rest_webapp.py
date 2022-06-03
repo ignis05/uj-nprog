@@ -69,11 +69,15 @@ class OsobyApp:
         W niniejszej aplikacji routing jest realizowany częściowo w tej metodzie,
         a częściowo w metodach handle_table() i handle_item().
         '''
+        print('---')
+        print(self.env['PATH'])
+        print('---')
+
         if self.env['PATH_INFO'] == '/osoby':
             self.handle_table()
             return
-        if self.env['PATH_INFO'].startswith('/osoby/search?'):
-            self.search_person(self.env['PATH_INFO'].split('?')[1])
+        if self.env['PATH_INFO'] == '/osoby/search':
+            self.search_person()
             return
         m = re.search('^/osoby/(?P<id>[0-9]+)$', self.env['PATH_INFO'])
         if m is not None:
@@ -81,11 +85,13 @@ class OsobyApp:
             return
         self.failure('404 Not Found')
 
-    def search_person(self, qs):
+    def search_person(self):
         conn = sqlite3.connect(plik_bazy)
         crsr = conn.cursor()
 
-        query = 'SELECT * FROM osoby WHERE' + ' AND '.join(el.split('=')[0] + ' = ' + el.split('=')[1] for el in qs.split('&'))
+        qs = self.env['QUERY_STRING']
+        query = 'SELECT * FROM osoby WHERE ' + ' AND '.join(el.split('=')[0] + ' = \'' + el.split('=')[1] + '\'' for el in qs.split('&'))
+        print(query)
 
         crsr.execute(query)
         colnames = [d[0] for d in crsr.description]
