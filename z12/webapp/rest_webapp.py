@@ -20,10 +20,10 @@ plik_bazy = './osoby.sqlite'
 class OsobyApp:
     def __init__(self, environment, start_response):
         '''
-Konstruktor wywoływany przez serwer WSGI. Jak każdy konstruktor tworzy nowy
-obiekt, następnie zapamiętuje w jego polach przekazane przez serwer argumenty
-i inicjuje pola na odpowiedź.
-'''
+        Konstruktor wywoływany przez serwer WSGI. Jak każdy konstruktor tworzy nowy
+        obiekt, następnie zapamiętuje w jego polach przekazane przez serwer argumenty
+        i inicjuje pola na odpowiedź.
+        '''
         self.env = environment
         self.start_response = start_response
         self.status = '200 OK'
@@ -32,10 +32,10 @@ i inicjuje pola na odpowiedź.
 
     def __iter__(self):
         '''
-Metoda obsługująca proces iterowania po stworzonym obiekcie. Serwer WSGI
-wymaga aby w środku była co najmniej jedna instrukcja "yield" zwracająca
-ciąg bajtów do odesłania klientowi HTTP.
-'''
+        Metoda obsługująca proces iterowania po stworzonym obiekcie. Serwer WSGI
+        wymaga aby w środku była co najmniej jedna instrukcja "yield" zwracająca
+        ciąg bajtów do odesłania klientowi HTTP.
+        '''
         try:
             self.route()
         except sqlite3.Error as e:
@@ -48,9 +48,9 @@ ciąg bajtów do odesłania klientowi HTTP.
 
     def failure(self, status, detail=None):
         '''
-Metoda wstawiająca do pól obiektu status błędu oraz dokument HTML
-z komunikatem o jego wystąpieniu.
-'''
+        Metoda wstawiająca do pól obiektu status błędu oraz dokument HTML
+        z komunikatem o jego wystąpieniu.
+        '''
         self.status = status
         s = '<html>\n<head>\n<title>' + status + '</title>\n</head>\n'
         s += '<body>\n<h1>' + status + '</h1>\n'
@@ -61,14 +61,14 @@ z komunikatem o jego wystąpieniu.
 
     def route(self):
         '''
-Pierwszą rzeczą, którą aplikacja musi zrobić po odebraniu zapytania, jest
-sprawdzenie nazwy metody HTTP oraz nazwy zasobu. Jest to konieczne aby się
-zorientować o co klient prosi i wywołać odpowiedni fragment kodu realizujący
-jego zlecenie. Jest to tzw. routing zapytania.
+        Pierwszą rzeczą, którą aplikacja musi zrobić po odebraniu zapytania, jest
+        sprawdzenie nazwy metody HTTP oraz nazwy zasobu. Jest to konieczne aby się
+        zorientować o co klient prosi i wywołać odpowiedni fragment kodu realizujący
+        jego zlecenie. Jest to tzw. routing zapytania.
 
-W niniejszej aplikacji routing jest realizowany częściowo w tej metodzie,
-a częściowo w metodach handle_table() i handle_item().
-'''
+        W niniejszej aplikacji routing jest realizowany częściowo w tej metodzie,
+        a częściowo w metodach handle_table() i handle_item().
+        '''
         if self.env['PATH_INFO'] == '/osoby':
             self.handle_table()
             return
@@ -96,9 +96,9 @@ a częściowo w metodach handle_table() i handle_item().
 
     def handle_table(self):
         '''
-Obsługa zapytań odnoszących się do tabeli "osoby" traktowanej jako całość.
-Można ją pobrać, albo można dodać do niej nowy wiersz.
-'''
+        Obsługa zapytań odnoszących się do tabeli "osoby" traktowanej jako całość.
+        Można ją pobrać, albo można dodać do niej nowy wiersz.
+        '''
         if self.env['REQUEST_METHOD'] == 'GET':
             colnames, rows = self.sql_select()
             self.send_rows(colnames, rows)
@@ -114,9 +114,9 @@ Można ją pobrać, albo można dodać do niej nowy wiersz.
 
     def handle_item(self, id):
         '''
-Obsługa zapytań odnoszących się do konkretnego wiersza w tabeli "osoby".
-Można go pobrać, zmodyfikować, albo usunąć.
-'''
+        Obsługa zapytań odnoszących się do konkretnego wiersza w tabeli "osoby".
+        Można go pobrać, zmodyfikować, albo usunąć.
+        '''
         if self.env['REQUEST_METHOD'] == 'GET':
             colnames, rows = self.sql_select(id)
             if len(rows) == 0:
