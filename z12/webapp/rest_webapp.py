@@ -11,9 +11,11 @@ Aplikacja nie potrafi sama stworzyć swojej bazy danych, trzeba to zrobić
 przed jej uruchomieniem. Skrypt rest_webapp.sh pokazuje jak.
 '''
 
+import sqlite3
+import re
+from posixpath import split
 plik_bazy = './osoby.sqlite'
 
-import re, sqlite3
 
 class OsobyApp:
     def __init__(self, environment, start_response):
@@ -25,7 +27,7 @@ i inicjuje pola na odpowiedź.
         self.env = environment
         self.start_response = start_response
         self.status = '200 OK'
-        self.headers = [ ('Content-Type', 'text/html; charset=UTF-8') ]
+        self.headers = [('Content-Type', 'text/html; charset=UTF-8')]
         self.content = b''
 
     def __iter__(self):
@@ -40,11 +42,11 @@ ciąg bajtów do odesłania klientowi HTTP.
             s = 'SQLite error: ' + str(e)
             self.failure('500 Internal Server Error', s)
         n = len(self.content)
-        self.headers.append( ('Content-Length', str(n)) )
+        self.headers.append(('Content-Length', str(n)))
         self.start_response(self.status, self.headers)
         yield self.content
 
-    def failure(self, status, detail = None):
+    def failure(self, status, detail=None):
         '''
 Metoda wstawiająca do pól obiektu status błędu oraz dokument HTML
 z komunikatem o jego wystąpieniu.
@@ -70,11 +72,27 @@ a częściowo w metodach handle_table() i handle_item().
         if self.env['PATH_INFO'] == '/osoby':
             self.handle_table()
             return
+        if self.env['PATH_INFO'].startswith('/osoby/search?'):
+            self.search_person(self.env['PATH_INFO'].split('?')[1])
+            return
         m = re.search('^/osoby/(?P<id>[0-9]+)$', self.env['PATH_INFO'])
         if m is not None:
             self.handle_item(m.group('id'))
             return
         self.failure('404 Not Found')
+
+    def search_person(self, qs):
+        conn = sqlite3.connect(plik_bazy)
+        crsr = conn.cursor()
+
+        query = 'SELECT * FROM osoby WHERE' + ' AND '.join(el.split('=')[0] + ' = ' + el.split('=')[1] for el in qs.split('&'))
+
+        crsr.execute(query)
+        colnames = [d[0] for d in crsr.description]
+        rows = crsr.fetchall()
+        crsr.close()
+        conn.close()
+        self.send_rows(colnames, rows)
 
     def handle_table(self):
         '''
@@ -133,23 +151,23 @@ Można go pobrać, zmodyfikować, albo usunąć.
         for row in rows:
             s += '\t'.join([str(val) for val in row]) + '\n'
         self.content = s.encode('UTF-8')
-        self.headers = [ ('Content-Type',
-                'text/tab-separated-values; charset=UTF-8') ]
+        self.headers = [('Content-Type',
+                         'text/tab-separated-values; charset=UTF-8')]
 
-    def sql_select(self, id = None):
+    def sql_select(self, id=None):
         conn = sqlite3.connect(plik_bazy)
         crsr = conn.cursor()
         query = 'SELECT * FROM osoby'
         if id is not None:
             query += ' WHERE id = ' + str(id)
         crsr.execute(query)
-        colnames = [ d[0] for d in crsr.description ]
+        colnames = [d[0] for d in crsr.description]
         rows = crsr.fetchall()
         crsr.close()
         conn.close()
         return colnames, rows
 
-    def sql_modify(self, query, params = None):
+    def sql_modify(self, query, params=None):
         conn = sqlite3.connect(plik_bazy)
         crsr = conn.cursor()
         if params is None:
@@ -161,6 +179,7 @@ Można go pobrać, zmodyfikować, albo usunąć.
         conn.commit()
         conn.close()
         return rowid
+
 
 if __name__ == '__main__':
     from wsgiref.simple_server import make_server
