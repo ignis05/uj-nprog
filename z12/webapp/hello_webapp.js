@@ -6,6 +6,8 @@ const port = 8001
 const server = http.createServer((req, res) => {
 	res.writeHead(200)
 
+	res.write(`<h1>Request method and url:</h1>`)
+	res.write(`${req.method}: ${req.url}`)
 	res.write(`<h1>Request headers:</h1>`)
 	res.write(Object.entries(req.headers).map(([key, value]) => `<b>${key}:</b> ${value}`).join('</br>'))
 	res.write(`<h1>Environment:</h1>`)
