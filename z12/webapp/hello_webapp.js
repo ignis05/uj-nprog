@@ -12,7 +12,7 @@ const server = http.createServer((req, res) => {
 	res.write(Object.entries(req.headers).map(([key, value]) => `<b>${key}:</b> ${value}`).join('</br>'))
 	res.write(`<h1>Environment:</h1>`)
 	res.write(Object.entries(process.env).map(([key, value]) => `<b>${key}:</b> ${value}`).join('</br>'))
-	res.end('')
+	res.end()
 })
 
 server.listen(port, host, () => {
